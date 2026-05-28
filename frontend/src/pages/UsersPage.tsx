@@ -17,10 +17,16 @@ import { formatBytes } from '@/lib/utils';
 type SortKey = 'username' | 'current_connections' | 'active_unique_ips' | 'total_octets' | 'expiration_rfc3339';
 type SortDir = 'asc' | 'desc';
 
+interface TlsDomainLink {
+  domain: string;
+  link: string;
+}
+
 interface UserLinks {
   classic?: string[];
   secure?: string[];
   tls?: string[];
+  tls_domains?: TlsDomainLink[];
 }
 
 interface UserInfo {
@@ -79,6 +85,15 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 interface LinkEntry {
   url: string;
   label: string;
+  host: string;
+}
+
+function getServer(raw: string): string {
+  try {
+    return new URL(raw).searchParams.get('server') ?? '';
+  } catch {
+    return raw.match(/[?&]server=([^&]*)/)?.[1] ?? '';
+  }
 }
 
 function appendComment(raw: string, username: string): string {
@@ -93,15 +108,40 @@ function appendComment(raw: string, username: string): string {
   }
 }
 
+function replaceServer(raw: string, server: string): string {
+  try {
+    const u = new URL(raw);
+    u.searchParams.set('server', server);
+    return u.toString();
+  } catch {
+    return raw.replace(/([?&]server=)[^&]*/, (_m, prefix) => prefix + encodeURIComponent(server));
+  }
+}
+
 function collectLinks(links?: UserLinks, username?: string): LinkEntry[] {
   const result: LinkEntry[] = [];
   if (!links) return result;
-  const addLinks = (urls: string[], label: string) => {
-    for (const url of urls) {
-      result.push({ url: username ? appendComment(url, username) : url, label });
-    }
+  const addLink = (rawUrl: string, label: string) => {
+    const url = username ? appendComment(rawUrl, username) : rawUrl;
+    result.push({ url, label, host: getServer(url) });
   };
-  if (links.tls) addLinks(links.tls, 'TLS');
+  const addLinks = (urls: string[], label: string) => {
+    for (const url of urls) addLink(url, label);
+  };
+
+  if (links.tls?.length || links.tls_domains?.length) {
+    // tls_domains carries the real domain for each fronted link, but the link's
+    // `server` still points at the primary host — swap it to the domain on display.
+    // The same domains also appear (with the wrong server) in `tls`, so skip those.
+    const domainLinks = links.tls_domains ?? [];
+    const overridden = new Set(domainLinks.map((d) => d.link));
+    for (const url of links.tls ?? []) {
+      if (!overridden.has(url)) addLink(url, 'TLS');
+    }
+    for (const { domain, link } of domainLinks) {
+      addLink(replaceServer(link, domain), 'TLS');
+    }
+  }
   if (links.secure) addLinks(links.secure, 'Secure');
   if (links.classic) addLinks(links.classic, 'Classic');
   return result;
@@ -343,6 +383,11 @@ export function UsersPage() {
                             <div className="flex flex-col gap-1">
                               {allLinks.map((link, i) => (
                                 <div key={i} className="flex items-center gap-1">
+                                  {link.host && (
+                                    <span className="text-[11px] font-mono text-text-secondary truncate max-w-[150px]" title={`${link.label}: ${link.host}`}>
+                                      {link.host}
+                                    </span>
+                                  )}
                                   <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label={link.label} />
                                   <CopyButton text={link.url} label="t.me" />
                                 </div>
@@ -441,6 +486,11 @@ export function UsersPage() {
                       <div className="text-xs text-text-secondary">Proxy Links</div>
                       {allLinks.map((link, i) => (
                         <div key={i} className="flex items-center gap-1">
+                          {link.host && (
+                            <span className="text-[11px] font-mono text-text-secondary truncate max-w-[150px]" title={`${link.label}: ${link.host}`}>
+                              {link.host}
+                            </span>
+                          )}
                           <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label={link.label} />
                           <CopyButton text={link.url} label="t.me" />
                         </div>
