@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLogStream } from '@/hooks/useLogStream';
+import { parseLogLineParts, type LogPartKind } from '@/pages/logsPage.helpers';
 import { Play, Square, Pause, Download, Trash2, Search } from 'lucide-react';
 
 interface LogSourceStatus {
@@ -53,47 +54,29 @@ function parseAnsi(raw: string): AnsiSpan[] {
   return spans;
 }
 
-const OUTER_TS_RE = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+/;
-
-function stripOuterTimestamp(raw: string): string {
-  return raw.replace(OUTER_TS_RE, '');
-}
-
-const TOKEN_RE = new RegExp(
-  [
-    '(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(?::\\d+)?)',
-    '(\\w+=)',
-  ].join('|'),
-  'g',
-);
-
-const TOKEN_COLORS: Record<number, string> = {
-  1: '#22d3ee',
-  2: '#c084fc',
+const LOG_PART_CLASSES: Record<LogPartKind, string> = {
+  timestamp: 'text-text-secondary',
+  host: 'text-text-secondary',
+  service: 'text-accent font-semibold',
+  'level-error': 'text-danger font-semibold',
+  'level-warn': 'text-warning font-semibold',
+  'level-info': 'text-success font-semibold',
+  'level-debug': 'text-text-secondary font-semibold',
+  ip: 'text-accent',
+  key: 'text-primary',
+  plain: '',
 };
 
-function tokenizeText(text: string): React.ReactNode[] {
-  const parts: React.ReactNode[] = [];
-  let last = 0, key = 0;
-  TOKEN_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = TOKEN_RE.exec(text)) !== null) {
-    let col = '';
-    for (let g = 1; g <= 2; g++) {
-      if (m[g] !== undefined) { col = TOKEN_COLORS[g]; break; }
-    }
-    if (!col) continue;
-    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>);
-    parts.push(<span key={key++} style={{ color: col }}>{m[0]}</span>);
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>);
-  return parts.length ? parts : [<span key={0}>{text}</span>];
+function renderStructuredText(text: string): React.ReactNode[] {
+  return parseLogLineParts(text).map((part, i) => (
+    <span key={i} className={LOG_PART_CLASSES[part.kind]}>
+      {part.text}
+    </span>
+  ));
 }
 
 function renderLogLine(raw: string): React.ReactNode {
-  const cleaned = stripOuterTimestamp(raw);
-  const spans = parseAnsi(cleaned);
+  const spans = parseAnsi(raw);
 
   return (
     <>
@@ -106,7 +89,7 @@ function renderLogLine(raw: string): React.ReactNode {
 
         return (
           <span key={i} style={style}>
-            {tokenizeText(s.text)}
+            {renderStructuredText(s.text)}
           </span>
         );
       })}
@@ -321,10 +304,10 @@ export function LogsPage() {
       <div
         ref={logContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-auto bg-zinc-950 rounded-lg border border-border font-mono text-xs leading-5 p-3 relative"
+        className="flex-1 overflow-auto bg-surface text-text-primary rounded-lg border border-border font-mono text-xs leading-5 p-3 relative"
       >
         {filteredLines.length === 0 && !streaming ? (
-          <div className="text-zinc-500 text-center py-8">
+          <div className="text-text-secondary text-center py-8">
             {lines.length === 0
               ? 'Press Start to begin streaming logs'
               : 'No lines match the filter'}

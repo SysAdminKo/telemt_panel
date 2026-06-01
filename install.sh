@@ -197,6 +197,7 @@ install_sudoers_dropin() {
   _chmod=$(command_path chmod)
   _rm=$(command_path rm)
   _systemctl=$(command_path systemctl)
+  _journalctl=$(command_path journalctl)
   _visudo=$(command -v visudo 2>/dev/null || true)
 
   _panel_tmp="${BIN_DIR}/.${BINARY_NAME}.tmp"
@@ -224,6 +225,10 @@ $SYSTEM_USER ALL=(root) NOPASSWD: $_systemctl restart $SERVICE_NAME
 $SYSTEM_USER ALL=(root) NOPASSWD: $_systemctl restart $_telemt_service
 $SYSTEM_USER ALL=(root) NOPASSWD: $_systemctl start $SERVICE_NAME
 $SYSTEM_USER ALL=(root) NOPASSWD: $_systemctl start $_telemt_service
+$SYSTEM_USER ALL=(root) NOPASSWD: $_journalctl -u $_telemt_service -n * --no-pager -o short-iso
+$SYSTEM_USER ALL=(root) NOPASSWD: $_journalctl -u $_telemt_service -n * --since * --no-pager -o short-iso
+$SYSTEM_USER ALL=(root) NOPASSWD: $_journalctl -u $_telemt_service -f --no-pager -o short-iso
+$SYSTEM_USER ALL=(root) NOPASSWD: $_journalctl -u $_telemt_service -f --since * --no-pager -o short-iso
 EOF
 
   if [ -n "$_visudo" ]; then
