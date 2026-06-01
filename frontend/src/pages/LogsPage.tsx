@@ -115,12 +115,21 @@ function renderLogLine(raw: string): React.ReactNode {
 }
 
 const LINE_OPTIONS = [100, 200, 500, 1000];
+const SINCE_OPTIONS = [
+  { value: '1h', label: 'Last hour' },
+  { value: '2h', label: '2 hours' },
+  { value: '12h', label: '12 hours' },
+  { value: '24h', label: '24 hours' },
+  { value: '7d', label: '7 days' },
+  { value: 'all', label: 'All available' },
+];
 
 export function LogsPage() {
   const [status, setStatus] = useState<LogSourceStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [initialLines, setInitialLines] = useState(200);
+  const [since, setSince] = useState('1h');
   const logContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -222,7 +231,7 @@ export function LogsPage() {
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         {!streaming ? (
           <button
-            onClick={() => start(initialLines)}
+            onClick={() => start(initialLines, since)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
           >
             <Play className="w-3.5 h-3.5" />
@@ -256,6 +265,17 @@ export function LogsPage() {
         >
           {LINE_OPTIONS.map((n) => (
             <option key={n} value={n}>{n} lines</option>
+          ))}
+        </select>
+
+        <select
+          value={since}
+          onChange={(e) => setSince(e.target.value)}
+          disabled={streaming}
+          className="px-2 py-1.5 text-sm bg-surface-secondary text-text-primary rounded border border-border"
+        >
+          {SINCE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
 
